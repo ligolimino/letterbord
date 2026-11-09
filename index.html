@@ -52,9 +52,18 @@
         align-items: center;
         justify-content: center;
         padding: var(--pad);
-        gap: var(--gap);
         overflow: hidden;
     }
+    /* De tegels zelf: zo smal en laag als ze zijn, midden in het vak. */
+    .inhoud {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--gap);
+        z-index: 1;
+    }
+    .icoon-ruimte { height: calc(var(--t) * 0.62); }
 
     /* Decoratieve vlekken in de hoeken, zoals in het Genially-bord */
     .vlek { position: absolute; pointer-events: none; }
@@ -109,10 +118,10 @@
     /* Subtiel modus-icoon linksonder */
     .modus-icoon {
         position: absolute;
-        left: calc(var(--pad) * 0.6);
-        bottom: calc(var(--pad) * 0.5);
-        width: calc(var(--t) * 1.25);
-        height: calc(var(--t) * 0.85);
+        left: 0;
+        bottom: 0;
+        width: calc(var(--t) * 1.1);
+        height: calc(var(--t) * 0.74);
         color: var(--icoon);
         opacity: .55;
         pointer-events: none;
@@ -348,13 +357,16 @@
 
     function bouwBord() {
         breedScherm = window.innerWidth / window.innerHeight > 0.95;
-        bord.querySelectorAll(".rij, .scheiding, .modus-icoon").forEach(el => el.remove());
-        let rijen = 0, lijnen = 0, kolommen = 1;
+        bord.querySelectorAll(".inhoud").forEach(el => el.remove());
+        const inhoud = document.createElement("div");
+        inhoud.className = "inhoud";
+        bord.appendChild(inhoud);
+        let rijen = 0, lijnen = 0, kolommen = 1, laatsteRij = 0;
         BORDEN[bordNaam].forEach(groep => {
             if (groep.lijn) {
                 const l = document.createElement("div");
                 l.className = "scheiding" + (groep.lijn === "donker" ? " donker" : "");
-                bord.appendChild(l);
+                inhoud.appendChild(l);
                 lijnen++;
                 return;
             }
@@ -371,8 +383,9 @@
                     b.addEventListener("click", () => kies(teken, g));
                     r.appendChild(b);
                 });
-                bord.appendChild(r);
+                inhoud.appendChild(r);
                 rijen++;
+                laatsteRij = rij.length;
                 kolommen = Math.max(kolommen, rij.length);
             });
         });
@@ -382,24 +395,45 @@
         icoon.className = "modus-icoon";
         icoon.innerHTML = modus === "schrijven" ? ICONEN.schrijven : ICONEN.lezen;
         icoon.setAttribute("aria-hidden", "true");
-        bord.appendChild(icoon);
+        // Is de laatste rij kort (bv. 50, of f w), dan past het icoon links
+        // ernaast. Anders komt er een smalle strook onder de tegels bij.
+        if (Math.max(kolommen, 5) - laatsteRij < 3) {
+            const ruimte = document.createElement("div");
+            ruimte.className = "icoon-ruimte";
+            inhoud.appendChild(ruimte);
+        }
+        inhoud.appendChild(icoon);
         schaal();
     }
 
     // Tegelgrootte afstemmen op het beschikbare vlak (tablet, gsm, Genially-embed)
+    // Meet hoe groot de tegels samen zijn en vergroot of verkleint ze zodat ze
+    // het vak (tablet, gsm, Genially-insluitvak) zo goed mogelijk vullen.
+    // Zo blijft er rond de tegels bijna geen lege rand over.
+    function zetMaat(t, pad) {
+        const st = document.documentElement.style;
+        st.setProperty("--t", t + "px");
+        st.setProperty("--gap", (t * 0.16) + "px");
+        st.setProperty("--pad", pad + "px");
+    }
     function schaal() {
-        const { rijen, lijnen, kolommen } = indeling;
-        const W = window.innerWidth, H = window.innerHeight;
-        const pad = Math.max(12, Math.min(W, H) * 0.045);
-        const icoonRuimte = 0.7;   // halve tegel extra onderaan voor het icoon
-        const tB = (W - 2 * pad) / (kolommen + 0.16 * (kolommen - 1));
-        const tH = (H - 2 * pad - 2 * lijnen) /
-                   (rijen * 0.82 + (rijen + lijnen - 1) * 0.16 + lijnen * 0.4 + icoonRuimte);
-        const t = Math.max(26, Math.min(tB, tH, 150));
-        document.documentElement.style.setProperty("--t", t + "px");
-        document.documentElement.style.setProperty("--gap", (t * 0.16) + "px");
-        document.documentElement.style.setProperty("--pad", pad + "px");
+        const { kolommen } = indeling;
         document.documentElement.style.setProperty("--kol", kolommen);
+        const inhoud = bord.querySelector(".inhoud");
+        const W = window.innerWidth, H = window.innerHeight;
+        const pad = Math.max(6, Math.min(W, H) * 0.02);
+        const beschikbaarB = W - 2 * pad, beschikbaarH = H - 2 * pad;
+        let t = 100;
+        for (let poging = 0; poging < 3; poging++) {
+            zetMaat(t, pad);
+            const breedte = inhoud.scrollWidth, hoogte = inhoud.scrollHeight;
+            if (!breedte || !hoogte) break;
+            const factor = Math.min(beschikbaarB / breedte, beschikbaarH / hoogte);
+            const nieuw = Math.max(20, Math.min(150, t * factor));
+            if (Math.abs(nieuw - t) < 0.3) break;
+            t = nieuw;
+        }
+        zetMaat(Math.floor(t * 10) / 10, pad);
     }
     window.addEventListener("resize", () => {
         const breed = window.innerWidth / window.innerHeight > 0.95;
