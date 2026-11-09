@@ -13,7 +13,6 @@
         --vlek: #cfdcd7;
         --vlek-donker: #b9c4cc;
         --tegel: #f6f6f5;
-        --tegel-rand: #ffffff;
         --klinker: #13b5bb;
         --medeklinker: #145c7c;
         --lijn: #7d9a90;
@@ -89,8 +88,7 @@
         border: none;
         border-radius: calc(var(--t) * 0.14);
         background: var(--tegel);
-        box-shadow: 0 calc(var(--t) * 0.05) calc(var(--t) * 0.14) var(--schaduw),
-                    inset 0 1px 0 var(--tegel-rand);
+        box-shadow: 0 calc(var(--t) * 0.05) calc(var(--t) * 0.14) var(--schaduw);
         font-family: inherit;
         font-size: calc(var(--t) * 0.5);
         line-height: 1;
@@ -158,12 +156,14 @@
         padding-bottom: 4%;
     }
     .groot.klinker { color: var(--klinker); }
+    .kaart.film { background: #fff; isolation: isolate; }
     .kaart video {
         width: 100%;
         height: 100%;
         object-fit: contain;
         background: #fff;
         display: block;
+        border-radius: inherit;
     }
     .kaart.dubbel {
         width: min(92vw, 120vh, 900px);
@@ -235,6 +235,13 @@
          &modus=groot      klik = klank + grote letter
          &modus=schrijven  klik = klank + schrijffilmpje
        Voorbeeld: index.html?bord=getallen&modus=schrijven
+
+       Een eigen bord (zo maakt de createpagina het):
+         ?rijen=ng,nk,sch|-|sl,sp,st
+       Elke rij gescheiden door |, de tekens door komma's.
+       Een rij met alleen - is een lichte lijn, met = een donkere lijn.
+       Klinkers worden vanzelf turquoise; getallen gebruiken de
+       getallenopnames.
        ============================================================ */
     const ASSETS = "https://ligolimino.github.io/assets/";
     const BASIS_AUDIO = ASSETS + "audio/";
@@ -282,13 +289,43 @@
 
     /* ============================================================ */
 
+    const KLINKERS = new Set(["a", "e", "i", "o", "u", "y", "aa", "ee", "oo", "uu",
+        "ie", "oe", "eu", "ui", "ij", "ei", "ou", "au", "eeuw", "ieuw", "uw", "aai", "ooi", "oei"]);
+
+    function eigenBord(tekst) {
+        const groepen = [];
+        tekst.split("|").map(r => r.trim()).filter(Boolean).forEach(rij => {
+            if (rij === "-" || rij === "=") {
+                groepen.push({ lijn: rij === "=" ? "donker" : "licht" });
+                return;
+            }
+            const tekens = rij.split(",").map(t => t.trim()).filter(Boolean);
+            if (!tekens.length) return;
+            // Elk teken krijgt zijn eigen kleur en geluidsmap.
+            tekens.forEach((t, i) => {
+                const groep = {
+                    soort: KLINKERS.has(t.toLowerCase()) ? "klinker" : "medeklinker",
+                    map: /^\d+$/.test(t) ? "getallen" : "klanken"
+                };
+                if (i === 0) groepen.push({ rij: [] });
+                groepen[groepen.length - 1].rij.push({ teken: t, groep });
+            });
+        });
+        // Omzetten naar het gewone formaat: per rij één groep met per-teken info.
+        return groepen.map(g => g.lijn ? g : { rijen: [g.rij.map(x => x.teken)], perTeken: g.rij.map(x => x.groep) });
+    }
+
     const params = new URLSearchParams(location.search);
-    const bordNaam = BORDEN[params.get("bord")] ? params.get("bord") : "letters";
+    if (params.get("rijen")) {
+        const bord = eigenBord(params.get("rijen"));
+        if (bord.some(g => g.rijen)) BORDEN.eigen = bord;
+    }
+    const bordNaam = BORDEN.eigen ? "eigen" : (BORDEN[params.get("bord")] ? params.get("bord") : "letters");
     const modus = ["lezen", "groot", "schrijven"].includes(params.get("modus")) ? params.get("modus") : "schrijven";
     const bord = document.getElementById("bord");
     const overlay = document.getElementById("overlay");
     const kaart = document.getElementById("kaart");
-    document.title = { letters: "Letterbord", cijfers: "Cijferbord", getallen: "Getallenbord" }[bordNaam];
+    document.title = { letters: "Letterbord", cijfers: "Cijferbord", getallen: "Getallenbord" }[bordNaam] || "Letterbord";
     bord.setAttribute("aria-label", document.title);
 
     const ICONEN = {
@@ -324,12 +361,14 @@
             rijenVan(groep, breedScherm).forEach(rij => {
                 const r = document.createElement("div");
                 r.className = "rij";
-                rij.forEach(teken => {
+                rij.forEach((teken, i) => {
+                    const g = groep.perTeken ? groep.perTeken[i] : groep;
                     const b = document.createElement("button");
-                    b.className = "tegel" + (groep.soort === "klinker" ? " klinker" : "") + (teken.length > 1 ? " breed" : "");
+                    b.className = "tegel" + (g.soort === "klinker" ? " klinker" : "") + (teken.length > 1 ? " breed" : "");
+                    if (teken.length > 2) b.style.fontSize = "calc(var(--t) * " + (teken.length > 3 ? 0.3 : 0.38) + ")";
                     b.textContent = teken;
                     b.setAttribute("aria-label", teken);
-                    b.addEventListener("click", () => kies(teken, groep));
+                    b.addEventListener("click", () => kies(teken, g));
                     r.appendChild(b);
                 });
                 bord.appendChild(r);
@@ -368,15 +407,84 @@
     });
 
     // Geluid
-    const geluiden = {};
-    function speelKlank(teken, groep) {
+    // Alle klanken van het bord worden meteen bij het openen geladen, zodat
+    // ook de eerste klik direct klinkt. De stilte vooraan in een opname wordt
+    // overgeslagen (de bestanden zelf blijven ongewijzigd).
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = AudioCtx ? new AudioCtx() : null;
+    const buffers = {};      // url -> { buf, start } of een Promise
+    let bron = null;          // klank die nu speelt (Web Audio)
+    let reserve = null;       // klank die nu speelt (gewone audio)
+
+    function audioUrl(teken, groep) {
         const map = groep.map || "klanken";
         const naam = AUDIO_ALIAS[teken] || teken;
-        const url = BASIS_AUDIO + map + "/" + encodeURIComponent(naam) + ".mp3";
-        Object.values(geluiden).forEach(a => { a.pause(); a.currentTime = 0; });
-        if (!geluiden[url]) geluiden[url] = new Audio(url);
-        geluiden[url].play().catch(() => {});
+        return BASIS_AUDIO + map + "/" + encodeURIComponent(naam) + ".mp3";
     }
+
+    function decodeer(data) {
+        return new Promise((ok, fout) => {
+            const p = ctx.decodeAudioData(data, ok, fout);
+            if (p && p.then) p.then(ok, fout);
+        });
+    }
+
+    function eersteGeluid(buf) {
+        const drempel = 0.02, kanaal = buf.getChannelData(0);
+        for (let i = 0; i < kanaal.length; i++) {
+            if (Math.abs(kanaal[i]) > drempel) return Math.max(0, i / buf.sampleRate - 0.03);
+        }
+        return 0;
+    }
+
+    function laad(url) {
+        if (!ctx) return Promise.resolve(null);
+        if (!buffers[url]) {
+            buffers[url] = fetch(url)
+                .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+                .then(decodeer)
+                .then(buf => (buffers[url] = { buf, start: eersteGeluid(buf) }))
+                .catch(() => (buffers[url] = { mislukt: true }));
+        }
+        return Promise.resolve(buffers[url]);
+    }
+
+    function laadAlles() {
+        const urls = [];
+        BORDEN[bordNaam].forEach(g => {
+            if (g.lijn) return;
+            (g.rijen ? g.rijen.flat() : g.tekens).forEach((t, i) => urls.push(audioUrl(t, g.perTeken ? g.perTeken[i] : g)));
+        });
+        const lijst = [...new Set(urls)];
+        let i = 0;
+        const volgende = () => { if (i < lijst.length) laad(lijst[i++]).then(volgende); };
+        for (let k = 0; k < 6; k++) volgende();
+    }
+
+    function stopKlank() {
+        if (bron) { try { bron.stop(); } catch (e) {} bron = null; }
+        if (reserve) { reserve.pause(); reserve = null; }
+    }
+
+    function speelKlank(teken, groep) {
+        const url = audioUrl(teken, groep);
+        stopKlank();
+        const klaar = buffers[url];
+        if (ctx && klaar && klaar.buf) {
+            if (ctx.state === "suspended") ctx.resume();
+            bron = ctx.createBufferSource();
+            bron.buffer = klaar.buf;
+            bron.connect(ctx.destination);
+            bron.start(0, klaar.start);
+        } else {
+            // Nog niet geladen (of oude browser): gewone audio als reserve.
+            reserve = new Audio(url);
+            reserve.play().catch(() => {});
+            laad(url);
+        }
+    }
+    // Sommige tablets (iPad) laten pas geluid toe na een eerste aanraking.
+    document.addEventListener("pointerdown", () => { if (ctx && ctx.state === "suspended") ctx.resume(); }, { once: true });
 
     function kies(teken, groep) {
         speelKlank(teken, groep);
@@ -386,6 +494,8 @@
 
     function toonLetter(teken, groep) {
         kaart.className = "kaart letter";
+        kaart.style.aspectRatio = "";
+        kaart.style.width = "";
         kaart.innerHTML = "";
         const g = document.createElement("div");
         g.className = "groot" + (groep.soort === "klinker" ? " klinker" : "");
@@ -410,11 +520,16 @@
     // daarna dat van het tweede, naast elkaar - zoals je het getal schrijft.
     function toonVideo(teken, groep) {
         const delen = (groep.map === "getallen" && teken.length > 1) ? teken.split("") : [teken];
-        kaart.className = "kaart" + (delen.length > 1 ? " dubbel" : "");
+        kaart.className = "kaart film" + (delen.length > 1 ? " dubbel" : "");
         kaart.innerHTML = "";
         const videos = delen.map(maakVideo);
         if (delen.length > 1) {
-            videos.forEach(v => v.classList.add("wacht"));
+            videos.forEach(v => { v.classList.add("wacht"); v.style.width = (100 / delen.length) + "%"; });
+            kaart.style.aspectRatio = delen.length + " / 1";
+            kaart.style.width = "min(94vw, " + (60 * delen.length) + "vh, " + (450 * delen.length) + "px)";
+        } else {
+            kaart.style.aspectRatio = "";
+            kaart.style.width = "";
         }
 
         const opnieuw = document.createElement("button");
@@ -457,6 +572,7 @@
     document.addEventListener("keydown", e => { if (e.key === "Escape") sluitOverlay(); });
 
     bouwBord();
+    laadAlles();
 </script>
 </body>
 </html>

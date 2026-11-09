@@ -30,6 +30,20 @@ Opnames en filmpjes komen uit **ligolimino.github.io/assets/**:
 
 Voorbeeld: `https://ligolimino.github.io/letterbord/?bord=getallen&modus=schrijven`
 
+### Een eigen bord
+
+Het eenvoudigst: op de createpagina (`ligolimino.github.io/create/`, kies
+*Letterbord*). Die maakt een link met `rijen=`:
+
+`?rijen=ng,nk,sch|-|sl,sp,st&modus=schrijven`
+
+- Elke rij gescheiden door `|`, de tekens door komma's.
+- Een rij met alleen `-` is een lichte lijn, met `=` een donkere lijn.
+- Klinkers worden vanzelf turquoise, de andere tekens donkerblauw.
+- Getallen gebruiken de opnames uit `audio/getallen/`, de rest die uit
+  `audio/klanken/`.
+- Staat `rijen=` in de link, dan wordt `bord=` genegeerd.
+
 ## Goed om te weten
 
 - Is er voor een letter nog geen schrijffilmpje, dan toont het bord de grote
@@ -40,5 +54,8 @@ Voorbeeld: `https://ligolimino.github.io/letterbord/?bord=getallen&modus=schrijv
   (gsm, tablet rechtop, Genially) in twee rijen van vijf.
 - Linksonder staat een klein icoon: een open boek bij lezen en groot, een
   schrijvend potlood bij schrijven.
-- Een bord toevoegen of aanpassen: bovenaan het script in `index.html`
-  (`BORDEN`).
+- Alle klanken van het bord worden bij het openen al geladen, zodat ook de
+  eerste klik meteen klinkt. De stilte vooraan in een opname wordt daarbij
+  overgeslagen; de opnames zelf blijven ongewijzigd.
+- De vaste borden (`bord=letters`, `cijfers`, `getallen`) staan bovenaan
+  het script in `index.html` (`BORDEN`).
