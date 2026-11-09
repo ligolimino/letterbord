@@ -64,6 +64,9 @@
         z-index: 1;
     }
     .icoon-ruimte { height: calc(var(--t) * 0.62); }
+    [data-uitlijning="links"] .inhoud { align-items: flex-start; }
+    [data-uitlijning="rechts"] .inhoud { align-items: flex-end; }
+    [data-uitlijning="links"] .modus-icoon { left: auto; right: 0; }
 
     /* Decoratieve vlekken in de hoeken, zoals in het Genially-bord */
     .vlek { position: absolute; pointer-events: none; }
@@ -174,13 +177,6 @@
         display: block;
         border-radius: inherit;
     }
-    .kaart.dubbel {
-        width: min(92vw, 120vh, 900px);
-        aspect-ratio: 2 / 1;
-        background: #fff;
-    }
-    .kaart.dubbel video { width: 50%; transition: opacity .2s ease; }
-    .kaart.dubbel video.wacht { opacity: 0; }
     .sluit {
         position: absolute;
         top: -16px;
@@ -331,6 +327,14 @@
     }
     const bordNaam = BORDEN.eigen ? "eigen" : (BORDEN[params.get("bord")] ? params.get("bord") : "letters");
     const modus = ["lezen", "groot", "schrijven"].includes(params.get("modus")) ? params.get("modus") : "schrijven";
+    // Icoontje: standaard volgens de werking, of zelf gekozen met icoon=.
+    const icoonNaam = ["lezen", "luisteren", "schrijven", "geen"].includes(params.get("icoon"))
+        ? params.get("icoon")
+        : { lezen: "luisteren", groot: "lezen", schrijven: "schrijven" }[modus];
+    // Uitlijning van rijen die niet vol zijn: links, midden of rechts.
+    const uitlijning = ["links", "rechts"].includes(params.get("uitlijning")) ? params.get("uitlijning") : "midden";
+    document.documentElement.dataset.uitlijning = uitlijning;
+    const VENSTER_MS = 180;
     const bord = document.getElementById("bord");
     const overlay = document.getElementById("overlay");
     const kaart = document.getElementById("kaart");
@@ -338,8 +342,10 @@
     bord.setAttribute("aria-label", document.title);
 
     const ICONEN = {
-        // open boek (lezen)
-        lezen: '<svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M60 22c-12-9-30-11-48-7v50c18-4 36-2 48 7 12-9 30-11 48-7V15c-18-4-36-2-48 7z"/><path d="M60 22v50"/><path d="M22 28c10-1 20 1 29 5M22 38c10-1 20 1 29 5M22 48c10-1 20 1 29 5M69 33c9-4 19-6 29-5M69 43c9-4 19-6 29-5M69 53c9-4 19-6 29-5" opacity=".6"/></svg>',
+        // leesblad met tekstregels (lezen)
+        lezen: '<svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M44 6h24l12 12v56H44z"/><path d="M68 6v12h12"/><path d="M51 28h22M51 37h22M51 46h22M51 55h15"/></svg>',
+        // oor met geluidsgolfjes (luisteren)
+        luisteren: '<svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M50 30a15 15 0 1 1 27 9c-4 4-7 6-7 12 0 7-5 11-10 11s-8-3-9-6"/><path d="M58 31a7 7 0 1 1 12 4c-2 2-4 3-4 7"/><path d="M38 24c-4 5-4 13 0 18M31 18c-7 9-7 22 0 31"/></svg>',
         // potlood dat een lijn schrijft (schrijven)
         schrijven: '<svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M8 66c6-8 10-14 14-14s2 12 7 12 8-16 13-16 3 14 8 14 6-6 10-9"/><path d="M66 50l38-38a5 5 0 0 1 7 7L73 57l-10 3z"/><path d="M99 17l7 7"/><path d="M66 50l7 7"/></svg>'
     };
@@ -393,11 +399,13 @@
 
         const icoon = document.createElement("div");
         icoon.className = "modus-icoon";
-        icoon.innerHTML = modus === "schrijven" ? ICONEN.schrijven : ICONEN.lezen;
+        icoon.innerHTML = ICONEN[icoonNaam] || "";
         icoon.setAttribute("aria-hidden", "true");
         // Is de laatste rij kort (bv. 50, of f w), dan past het icoon links
         // ernaast. Anders komt er een smalle strook onder de tegels bij.
-        if (Math.max(kolommen, 5) - laatsteRij < 3) {
+        // Bij links of rechts uitlijnen staat het icoon aan de lege kant.
+        const vrij = Math.max(kolommen, 5) - laatsteRij;
+        if (icoonNaam !== "geen" && vrij < (uitlijning === "midden" ? 2 : 1)) {
             const ruimte = document.createElement("div");
             ruimte.className = "icoon-ruimte";
             inhoud.appendChild(ruimte);
@@ -520,10 +528,30 @@
     // Sommige tablets (iPad) laten pas geluid toe na een eerste aanraking.
     document.addEventListener("pointerdown", () => { if (ctx && ctx.state === "suspended") ctx.resume(); }, { once: true });
 
+    // De klank valt samen met het beeld: bij de grote letter zodra het
+    // venster open is, bij een filmpje zodra het eerste beeld verschijnt.
+    let klikNummer = 0;
     function kies(teken, groep) {
-        speelKlank(teken, groep);
-        if (modus === "groot") toonLetter(teken, groep);
-        if (modus === "schrijven") toonVideo(teken, groep);
+        const nummer = ++klikNummer;
+        let gespeeld = false;
+        const klank = () => {
+            if (gespeeld || nummer !== klikNummer || !overlay.classList.contains("open")) return;
+            gespeeld = true;
+            speelKlank(teken, groep);
+        };
+        // Nooit voor het venster helemaal open is.
+        const start = performance.now();
+        const naVenster = () => setTimeout(klank, Math.max(0, VENSTER_MS - (performance.now() - start)));
+        if (modus === "lezen") {
+            speelKlank(teken, groep);
+        } else if (modus === "groot") {
+            toonLetter(teken, groep);
+            naVenster();
+        } else {
+            toonVideo(teken, groep, naVenster);
+            // Laadt het filmpje traag, dan toch niet langer dan even wachten.
+            setTimeout(klank, 900);
+        }
     }
 
     function toonLetter(teken, groep) {
@@ -552,52 +580,42 @@
 
     // Getallen van twee cijfers: eerst het filmpje van het eerste cijfer,
     // daarna dat van het tweede, naast elkaar - zoals je het getal schrijft.
-    function toonVideo(teken, groep) {
-        const delen = (groep.map === "getallen" && teken.length > 1) ? teken.split("") : [teken];
-        kaart.className = "kaart film" + (delen.length > 1 ? " dubbel" : "");
-        kaart.innerHTML = "";
-        const videos = delen.map(maakVideo);
-        if (delen.length > 1) {
-            videos.forEach(v => { v.classList.add("wacht"); v.style.width = (100 / delen.length) + "%"; });
-            kaart.style.aspectRatio = delen.length + " / 1";
-            kaart.style.width = "min(94vw, " + (60 * delen.length) + "vh, " + (450 * delen.length) + "px)";
-        } else {
-            kaart.style.aspectRatio = "";
-            kaart.style.width = "";
+    // Schrijffilmpje van één letter, klank of cijfer. Getallen vanaf 10
+    // krijgen geen filmpje maar het grote getal.
+    function toonVideo(teken, groep, bijStart) {
+        if (groep.map === "getallen" && teken.length > 1) {
+            toonLetter(teken, groep);
+            bijStart();
+            return;
         }
+        kaart.className = "kaart film";
+        kaart.style.aspectRatio = "";
+        kaart.style.width = "";
+        kaart.innerHTML = "";
+        const v = maakVideo(teken);
 
         const opnieuw = document.createElement("button");
         opnieuw.className = "opnieuw";
         opnieuw.setAttribute("aria-label", "Opnieuw afspelen");
         opnieuw.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg>';
 
-        const speelVanaf = i => {
-            videos.forEach((v, j) => {
-                if (j >= i) { v.pause(); v.currentTime = 0; }
-                v.classList.toggle("wacht", j > i);
-            });
-            videos[i].play().catch(() => {});
-        };
-        const speelAlles = () => { opnieuw.classList.remove("zichtbaar"); speelVanaf(0); };
-
-        videos.forEach((v, i) => {
-            v.addEventListener("ended", () => {
-                if (i + 1 < videos.length) speelVanaf(i + 1);
-                else opnieuw.classList.add("zichtbaar");
-            });
-            v.addEventListener("click", speelAlles);
-            // Nog geen filmpje voor dit teken? Dan tonen we de grote letter.
-            v.addEventListener("error", () => toonLetter(teken, groep), { once: true });
-            kaart.appendChild(v);
-        });
-        opnieuw.addEventListener("click", e => { e.stopPropagation(); speelAlles(); });
+        const speel = () => { opnieuw.classList.remove("zichtbaar"); v.currentTime = 0; v.play().catch(() => {}); };
+        v.addEventListener("ended", () => opnieuw.classList.add("zichtbaar"));
+        v.addEventListener("click", speel);
+        // De klank start samen met het eerste beeld van het filmpje.
+        v.addEventListener("playing", bijStart, { once: true });
+        // Nog geen filmpje voor dit teken? Dan tonen we de grote letter.
+        v.addEventListener("error", () => { toonLetter(teken, groep); bijStart(); }, { once: true });
+        opnieuw.addEventListener("click", e => { e.stopPropagation(); speel(); });
+        kaart.appendChild(v);
         kaart.appendChild(opnieuw);
         openOverlay();
-        speelVanaf(0);
+        v.play().catch(() => {});
     }
 
     function openOverlay() { overlay.classList.add("open"); }
     function sluitOverlay() {
+        klikNummer++;
         overlay.classList.remove("open");
         kaart.querySelectorAll("video").forEach(v => v.pause());
     }

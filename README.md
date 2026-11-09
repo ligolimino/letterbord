@@ -27,6 +27,8 @@ Opnames en filmpjes komen uit **ligolimino.github.io/assets/**:
 | `modus=lezen` | klik = klank |
 | `modus=groot` | klik = klank + grote letter |
 | `modus=schrijven` | klik = klank + schrijffilmpje (standaard) |
+| `uitlijning=links` / `rechts` | rijen die niet vol zijn links of rechts (standaard: midden) |
+| `icoon=lezen` / `luisteren` / `schrijven` / `geen` | ander icoontje (standaard: oor bij klank, leesblad bij grote letter, potlood bij schrijven) |
 
 Voorbeeld: `https://ligolimino.github.io/letterbord/?bord=getallen&modus=schrijven`
 
@@ -48,12 +50,15 @@ Het eenvoudigst: op de createpagina (`ligolimino.github.io/create/`, kies
 
 - Is er voor een letter nog geen schrijffilmpje, dan toont het bord de grote
   letter. Een nieuw filmpje in `assets/video/schrijven/` wordt vanzelf gebruikt.
-- Bij getallen van twee cijfers wordt eerst het filmpje van het eerste cijfer
-  afgespeeld en daarna dat van het tweede, naast elkaar.
+- Getallen vanaf 10 krijgen geen schrijffilmpje: ze verschijnen groot.
+- De klank start samen met het beeld: zodra het venster open is, of zodra
+  het filmpje begint.
 - Op een breed scherm staat elk tiental op één rij; op een smal scherm
   (gsm, tablet rechtop, Genially) in twee rijen van vijf.
-- Linksonder staat een klein icoon: een open boek bij lezen en groot, een
-  schrijvend potlood bij schrijven.
+- De tegels vullen het vak zo goed mogelijk. Wat overblijft is lege rand in
+  één richting: maak het insluitvak in Genially in die richting kleiner.
+- Het icoontje staat naast een korte laatste rij, aan de lege kant. Is de
+  laatste rij vol, dan komt er een smalle strook onder.
 - Alle klanken van het bord worden bij het openen al geladen, zodat ook de
   eerste klik meteen klinkt. De stilte vooraan in een opname wordt daarbij
   overgeslagen; de opnames zelf blijven ongewijzigd.
