@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Letterbord</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --achtergrond: #e3ebe8;
+        --vlek: #cfdcd7;
+        --vlek-donker: #b9c4cc;
+        --tegel: #f6f6f5;
+        --tegel-rand: #ffffff;
+        --klinker: #13b5bb;
+        --medeklinker: #145c7c;
+        --lijn: #7d9a90;
+        --lijn-donker: #4d5a6b;
+        --icoon: #8fa59c;
+        --schaduw: rgba(40, 60, 55, 0.18);
+        --overlay: rgba(30, 40, 45, 0.55);
+        --kaart: #f7f7f7;
+        --sluit: #3b3f44;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+            --achtergrond: #e3ebe8;
+        }
+    }
+    :root[data-theme="dark"] {
+        --achtergrond: #e3ebe8;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--achtergrond);
+        font-family: "Andika", "Segoe UI", sans-serif;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    .bord {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: var(--pad);
+        gap: var(--gap);
+        overflow: hidden;
+    }
+
+    /* Decoratieve vlekken in de hoeken, zoals in het Genially-bord */
+    .vlek { position: absolute; pointer-events: none; }
+    .vlek.lb { top: -40px; left: -50px; width: 160px; height: 90px; border-radius: 50%; background: var(--vlek); }
+    .vlek.rb { top: 10px; right: 8px; width: 40px; height: 22px; border-radius: 45% 55% 50% 40%; background: var(--vlek); }
+    .vlek.lo { bottom: 30px; left: -18px; width: 36px; height: 42px; border-radius: 50%; background: var(--vlek-donker); opacity: .7; }
+    .vlek.ro { bottom: -60px; right: -40px; width: 180px; height: 120px; border-radius: 50%; background: var(--vlek); }
+
+    .rij {
+        display: flex;
+        justify-content: center;
+        gap: var(--gap);
+        position: relative;
+        z-index: 1;
+    }
+    .scheiding {
+        width: calc(var(--t) * var(--kol, 5) + var(--gap) * (var(--kol, 5) - 1));
+        max-width: 100%;
+        height: 2px;
+        background: var(--lijn);
+        opacity: .8;
+        margin: calc(var(--gap) * 0.4) 0;
+        position: relative;
+        z-index: 1;
+    }
+    .scheiding.donker { background: var(--lijn-donker); }
+
+    .tegel {
+        width: var(--t);
+        height: calc(var(--t) * 0.82);
+        border: none;
+        border-radius: calc(var(--t) * 0.14);
+        background: var(--tegel);
+        box-shadow: 0 calc(var(--t) * 0.05) calc(var(--t) * 0.14) var(--schaduw),
+                    inset 0 1px 0 var(--tegel-rand);
+        font-family: inherit;
+        font-size: calc(var(--t) * 0.5);
+        line-height: 1;
+        color: var(--medeklinker);
+        cursor: pointer;
+        padding: 0 0 calc(var(--t) * 0.06);
+        transition: transform .12s ease, box-shadow .12s ease;
+        touch-action: manipulation;
+    }
+    .tegel.klinker { color: var(--klinker); }
+    .tegel.breed { font-size: calc(var(--t) * 0.46); }
+    .tegel:active, .tegel.ingedrukt {
+        transform: translateY(2px) scale(.97);
+        box-shadow: 0 1px calc(var(--t) * 0.06) var(--schaduw);
+    }
+    .tegel:focus-visible { outline: 3px solid var(--klinker); outline-offset: 2px; }
+
+    /* Subtiel modus-icoon linksonder */
+    .modus-icoon {
+        position: absolute;
+        left: calc(var(--pad) * 0.6);
+        bottom: calc(var(--pad) * 0.5);
+        width: calc(var(--t) * 1.25);
+        height: calc(var(--t) * 0.85);
+        color: var(--icoon);
+        opacity: .55;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* Vergroot-venster */
+    .overlay {
+        position: fixed;
+        inset: 0;
+        background: var(--overlay);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .18s ease;
+        z-index: 10;
+    }
+    .overlay.open { opacity: 1; pointer-events: auto; }
+    .venster { position: relative; transform: scale(.92); transition: transform .18s ease; }
+    .overlay.open .venster { transform: scale(1); }
+    .kaart {
+        position: relative;
+        width: min(86vw, 70vh);
+        aspect-ratio: 1 / 1;
+        background: var(--kaart);
+        border-radius: 7%;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, .25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .kaart.letter { aspect-ratio: 4 / 3; }
+    .groot {
+        font-size: min(42vw, 34vh);
+        line-height: 1;
+        font-weight: 400;
+        color: var(--medeklinker);
+        padding-bottom: 4%;
+    }
+    .groot.klinker { color: var(--klinker); }
+    .kaart video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        background: #fff;
+        display: block;
+    }
+    .kaart.dubbel {
+        width: min(92vw, 120vh, 900px);
+        aspect-ratio: 2 / 1;
+        background: #fff;
+    }
+    .kaart.dubbel video { width: 50%; transition: opacity .2s ease; }
+    .kaart.dubbel video.wacht { opacity: 0; }
+    .sluit {
+        position: absolute;
+        top: -16px;
+        right: -16px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: none;
+        background: var(--sluit);
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 11;
+        box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    .sluit svg { width: 16px; height: 16px; }
+    .opnieuw {
+        position: absolute;
+        right: 4%;
+        bottom: 4%;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(20, 92, 124, .1);
+        color: var(--medeklinker);
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    .opnieuw.zichtbaar { display: flex; }
+    .opnieuw svg { width: 24px; height: 24px; }
+</style>
+</head>
+<body>
+<main class="bord" id="bord" aria-label="Letterbord">
+    <div class="vlek lb"></div><div class="vlek rb"></div><div class="vlek lo"></div><div class="vlek ro"></div>
+</main>
+
+<div class="overlay" id="overlay" role="dialog" aria-modal="true">
+    <div class="venster">
+        <div class="kaart" id="kaart"></div>
+        <button class="sluit" id="sluit" aria-label="Sluiten">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg>
+        </button>
+    </div>
+</div>
+
+<script>
+    /* ============================================================
+       LETTERBORD - instellingen
+       Kies het bord en de werking via de link:
+         ?bord=letters    alle letters en klanken
+         ?bord=cijfers    0 tot 9
+         ?bord=getallen   0 tot 50
+       en
+         &modus=lezen      klik = klank
+         &modus=groot      klik = klank + grote letter
+         &modus=schrijven  klik = klank + schrijffilmpje
+       Voorbeeld: index.html?bord=getallen&modus=schrijven
+       ============================================================ */
+    const ASSETS = "https://ligolimino.github.io/assets/";
+    const BASIS_AUDIO = ASSETS + "audio/";
+    const BASIS_VIDEO = ASSETS + "video/schrijven/";
+
+    // Afwijkende geluidsbestanden (teken -> bestandsnaam zonder .mp3)
+    const AUDIO_ALIAS = { ij: "ij-ei", ei: "ij-ei", au: "ou" };
+
+    const reeks = (van, tot) => Array.from({ length: tot - van + 1 }, (_, i) => String(van + i));
+
+    // Een groep heeft ofwel vaste "rijen", ofwel een lijst "tekens" die per
+    // "perRij" (smal scherm) of "perRijBreed" (breed scherm) verdeeld wordt.
+    const BORDEN = {
+        letters: [
+            { soort: "klinker", rijen: [["i", "a", "e", "o", "u"]] },
+            { lijn: "licht" },
+            { soort: "klinker", rijen: [["aa", "ee", "oo", "uu"]] },
+            { lijn: "licht" },
+            { soort: "klinker", rijen: [["ij", "oe", "ie", "ui"], ["ou", "eu", "ei", "au"]] },
+            { lijn: "donker" },
+            { soort: "medeklinker", rijen: [
+                ["k", "m", "p", "n", "d"],
+                ["r", "t", "s", "g", "z"],
+                ["l", "v", "h", "b", "j"],
+                ["f", "w"]
+            ] }
+        ],
+        cijfers: [
+            { soort: "medeklinker", map: "getallen", rijen: [reeks(0, 4), reeks(5, 9)] }
+        ],
+        getallen: [
+            { soort: "medeklinker", map: "getallen", tekens: reeks(0, 9), perRij: 5, perRijBreed: 10 },
+            { lijn: "licht" },
+            { soort: "medeklinker", map: "getallen", tekens: reeks(10, 19), perRij: 5, perRijBreed: 10 },
+            { lijn: "licht" },
+            { soort: "medeklinker", map: "getallen", tekens: reeks(20, 29), perRij: 5, perRijBreed: 10 },
+            { lijn: "licht" },
+            { soort: "medeklinker", map: "getallen", tekens: reeks(30, 39), perRij: 5, perRijBreed: 10 },
+            { lijn: "licht" },
+            { soort: "medeklinker", map: "getallen", tekens: reeks(40, 49), perRij: 5, perRijBreed: 10 },
+            { lijn: "licht" },
+            { soort: "medeklinker", map: "getallen", tekens: ["50"], perRij: 5, perRijBreed: 10 }
+        ]
+    };
+
+    /* ============================================================ */
+
+    const params = new URLSearchParams(location.search);
+    const bordNaam = BORDEN[params.get("bord")] ? params.get("bord") : "letters";
+    const modus = ["lezen", "groot", "schrijven"].includes(params.get("modus")) ? params.get("modus") : "schrijven";
+    const bord = document.getElementById("bord");
+    const overlay = document.getElementById("overlay");
+    const kaart = document.getElementById("kaart");
+    document.title = { letters: "Letterbord", cijfers: "Cijferbord", getallen: "Getallenbord" }[bordNaam];
+    bord.setAttribute("aria-label", document.title);
+
+    const ICONEN = {
+        // open boek (lezen)
+        lezen: '<svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M60 22c-12-9-30-11-48-7v50c18-4 36-2 48 7 12-9 30-11 48-7V15c-18-4-36-2-48 7z"/><path d="M60 22v50"/><path d="M22 28c10-1 20 1 29 5M22 38c10-1 20 1 29 5M22 48c10-1 20 1 29 5M69 33c9-4 19-6 29-5M69 43c9-4 19-6 29-5M69 53c9-4 19-6 29-5" opacity=".6"/></svg>',
+        // potlood dat een lijn schrijft (schrijven)
+        schrijven: '<svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"><path d="M8 66c6-8 10-14 14-14s2 12 7 12 8-16 13-16 3 14 8 14 6-6 10-9"/><path d="M66 50l38-38a5 5 0 0 1 7 7L73 57l-10 3z"/><path d="M99 17l7 7"/><path d="M66 50l7 7"/></svg>'
+    };
+
+    let indeling = null;   // { rijen, lijnen, kolommen }
+    let breedScherm = null;
+
+    function rijenVan(groep, breed) {
+        if (groep.rijen) return groep.rijen;
+        const n = breed ? groep.perRijBreed : groep.perRij;
+        const r = [];
+        for (let i = 0; i < groep.tekens.length; i += n) r.push(groep.tekens.slice(i, i + n));
+        return r;
+    }
+
+    function bouwBord() {
+        breedScherm = window.innerWidth / window.innerHeight > 0.95;
+        bord.querySelectorAll(".rij, .scheiding, .modus-icoon").forEach(el => el.remove());
+        let rijen = 0, lijnen = 0, kolommen = 1;
+        BORDEN[bordNaam].forEach(groep => {
+            if (groep.lijn) {
+                const l = document.createElement("div");
+                l.className = "scheiding" + (groep.lijn === "donker" ? " donker" : "");
+                bord.appendChild(l);
+                lijnen++;
+                return;
+            }
+            rijenVan(groep, breedScherm).forEach(rij => {
+                const r = document.createElement("div");
+                r.className = "rij";
+                rij.forEach(teken => {
+                    const b = document.createElement("button");
+                    b.className = "tegel" + (groep.soort === "klinker" ? " klinker" : "") + (teken.length > 1 ? " breed" : "");
+                    b.textContent = teken;
+                    b.setAttribute("aria-label", teken);
+                    b.addEventListener("click", () => kies(teken, groep));
+                    r.appendChild(b);
+                });
+                bord.appendChild(r);
+                rijen++;
+                kolommen = Math.max(kolommen, rij.length);
+            });
+        });
+        indeling = { rijen, lijnen, kolommen: Math.max(kolommen, 5) };
+
+        const icoon = document.createElement("div");
+        icoon.className = "modus-icoon";
+        icoon.innerHTML = modus === "schrijven" ? ICONEN.schrijven : ICONEN.lezen;
+        icoon.setAttribute("aria-hidden", "true");
+        bord.appendChild(icoon);
+        schaal();
+    }
+
+    // Tegelgrootte afstemmen op het beschikbare vlak (tablet, gsm, Genially-embed)
+    function schaal() {
+        const { rijen, lijnen, kolommen } = indeling;
+        const W = window.innerWidth, H = window.innerHeight;
+        const pad = Math.max(12, Math.min(W, H) * 0.045);
+        const icoonRuimte = 0.7;   // halve tegel extra onderaan voor het icoon
+        const tB = (W - 2 * pad) / (kolommen + 0.16 * (kolommen - 1));
+        const tH = (H - 2 * pad - 2 * lijnen) /
+                   (rijen * 0.82 + (rijen + lijnen - 1) * 0.16 + lijnen * 0.4 + icoonRuimte);
+        const t = Math.max(26, Math.min(tB, tH, 150));
+        document.documentElement.style.setProperty("--t", t + "px");
+        document.documentElement.style.setProperty("--gap", (t * 0.16) + "px");
+        document.documentElement.style.setProperty("--pad", pad + "px");
+        document.documentElement.style.setProperty("--kol", kolommen);
+    }
+    window.addEventListener("resize", () => {
+        const breed = window.innerWidth / window.innerHeight > 0.95;
+        if (breed !== breedScherm) bouwBord(); else schaal();
+    });
+
+    // Geluid
+    const geluiden = {};
+    function speelKlank(teken, groep) {
+        const map = groep.map || "klanken";
+        const naam = AUDIO_ALIAS[teken] || teken;
+        const url = BASIS_AUDIO + map + "/" + encodeURIComponent(naam) + ".mp3";
+        Object.values(geluiden).forEach(a => { a.pause(); a.currentTime = 0; });
+        if (!geluiden[url]) geluiden[url] = new Audio(url);
+        geluiden[url].play().catch(() => {});
+    }
+
+    function kies(teken, groep) {
+        speelKlank(teken, groep);
+        if (modus === "groot") toonLetter(teken, groep);
+        if (modus === "schrijven") toonVideo(teken, groep);
+    }
+
+    function toonLetter(teken, groep) {
+        kaart.className = "kaart letter";
+        kaart.innerHTML = "";
+        const g = document.createElement("div");
+        g.className = "groot" + (groep.soort === "klinker" ? " klinker" : "");
+        g.textContent = teken;
+        kaart.appendChild(g);
+        openOverlay();
+    }
+
+    function maakVideo(naam) {
+        const v = document.createElement("video");
+        v.src = BASIS_VIDEO + encodeURIComponent(naam) + ".mp4";
+        v.muted = true;
+        v.playsInline = true;
+        v.setAttribute("playsinline", "");
+        v.setAttribute("webkit-playsinline", "");
+        v.preload = "auto";
+        v.disablePictureInPicture = true;
+        return v;
+    }
+
+    // Getallen van twee cijfers: eerst het filmpje van het eerste cijfer,
+    // daarna dat van het tweede, naast elkaar - zoals je het getal schrijft.
+    function toonVideo(teken, groep) {
+        const delen = (groep.map === "getallen" && teken.length > 1) ? teken.split("") : [teken];
+        kaart.className = "kaart" + (delen.length > 1 ? " dubbel" : "");
+        kaart.innerHTML = "";
+        const videos = delen.map(maakVideo);
+        if (delen.length > 1) {
+            videos.forEach(v => v.classList.add("wacht"));
+        }
+
+        const opnieuw = document.createElement("button");
+        opnieuw.className = "opnieuw";
+        opnieuw.setAttribute("aria-label", "Opnieuw afspelen");
+        opnieuw.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5"/></svg>';
+
+        const speelVanaf = i => {
+            videos.forEach((v, j) => {
+                if (j >= i) { v.pause(); v.currentTime = 0; }
+                v.classList.toggle("wacht", j > i);
+            });
+            videos[i].play().catch(() => {});
+        };
+        const speelAlles = () => { opnieuw.classList.remove("zichtbaar"); speelVanaf(0); };
+
+        videos.forEach((v, i) => {
+            v.addEventListener("ended", () => {
+                if (i + 1 < videos.length) speelVanaf(i + 1);
+                else opnieuw.classList.add("zichtbaar");
+            });
+            v.addEventListener("click", speelAlles);
+            // Nog geen filmpje voor dit teken? Dan tonen we de grote letter.
+            v.addEventListener("error", () => toonLetter(teken, groep), { once: true });
+            kaart.appendChild(v);
+        });
+        opnieuw.addEventListener("click", e => { e.stopPropagation(); speelAlles(); });
+        kaart.appendChild(opnieuw);
+        openOverlay();
+        speelVanaf(0);
+    }
+
+    function openOverlay() { overlay.classList.add("open"); }
+    function sluitOverlay() {
+        overlay.classList.remove("open");
+        kaart.querySelectorAll("video").forEach(v => v.pause());
+    }
+    document.getElementById("sluit").addEventListener("click", sluitOverlay);
+    overlay.addEventListener("click", e => { if (e.target === overlay) sluitOverlay(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") sluitOverlay(); });
+
+    bouwBord();
+</script>
+</body>
+</html>
