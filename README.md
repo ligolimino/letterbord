@@ -28,6 +28,7 @@ Opnames en filmpjes komen uit **ligolimino.github.io/assets/**:
 | `modus=groot` | klik = klank + grote letter |
 | `modus=schrijven` | klik = klank + schrijffilmpje (standaard) |
 | `uitlijning=links` / `rechts` | rijen die niet vol zijn links of rechts (standaard: midden) |
+| `uitlijning=spreiden` / `uitrekken` | elke rij even breed: grotere tussenruimte, of bredere tegels |
 | `icoon=lezen` / `luisteren` / `schrijven` / `geen` | ander icoontje (standaard: oor bij klank, leesblad bij grote letter, potlood bij schrijven) |
 
 Voorbeeld: `https://ligolimino.github.io/letterbord/?bord=getallen&modus=schrijven`

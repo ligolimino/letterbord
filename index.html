@@ -67,6 +67,14 @@
     [data-uitlijning="links"] .inhoud { align-items: flex-start; }
     [data-uitlijning="rechts"] .inhoud { align-items: flex-end; }
     [data-uitlijning="links"] .modus-icoon { left: auto; right: 0; }
+    /* Spreiden en uitrekken: elke rij even breed als een volle rij. */
+    [data-uitlijning="spreiden"] .rij,
+    [data-uitlijning="uitrekken"] .rij {
+        width: calc(var(--t) * var(--kol, 5) + var(--gap) * (var(--kol, 5) - 1));
+    }
+    [data-uitlijning="spreiden"] .rij { justify-content: space-between; }
+    [data-uitlijning="spreiden"] .rij.alleen { justify-content: center; }
+    [data-uitlijning="uitrekken"] .rij .tegel { flex: 1 1 0; }
 
     /* Decoratieve vlekken in de hoeken, zoals in het Genially-bord */
     .vlek { position: absolute; pointer-events: none; }
@@ -244,6 +252,8 @@
        Een eigen bord (zo maakt de createpagina het):
          ?rijen=ng,nk,sch|-|sl,sp,st
        Elke rij gescheiden door |, de tekens door komma's.
+       uitlijning=links|midden|rechts|spreiden|uitrekken voor rijen die niet
+       vol zijn (spreiden: grotere tussenruimte, uitrekken: bredere tegels).
        Een rij met alleen - is een lichte lijn, met = een donkere lijn.
        Klinkers worden vanzelf turquoise; getallen gebruiken de
        getallenopnames.
@@ -332,7 +342,7 @@
         ? params.get("icoon")
         : { lezen: "luisteren", groot: "lezen", schrijven: "schrijven" }[modus];
     // Uitlijning van rijen die niet vol zijn: links, midden of rechts.
-    const uitlijning = ["links", "rechts"].includes(params.get("uitlijning")) ? params.get("uitlijning") : "midden";
+    const uitlijning = ["links", "rechts", "spreiden", "uitrekken"].includes(params.get("uitlijning")) ? params.get("uitlijning") : "midden";
     document.documentElement.dataset.uitlijning = uitlijning;
     const VENSTER_MS = 180;
     const bord = document.getElementById("bord");
@@ -378,7 +388,7 @@
             }
             rijenVan(groep, breedScherm).forEach(rij => {
                 const r = document.createElement("div");
-                r.className = "rij";
+                r.className = "rij" + (rij.length === 1 ? " alleen" : "");
                 rij.forEach((teken, i) => {
                     const g = groep.perTeken ? groep.perTeken[i] : groep;
                     const b = document.createElement("button");
@@ -395,7 +405,7 @@
                 kolommen = Math.max(kolommen, rij.length);
             });
         });
-        indeling = { rijen, lijnen, kolommen: Math.max(kolommen, 5) };
+        indeling = { rijen, lijnen, kolommen };
 
         const icoon = document.createElement("div");
         icoon.className = "modus-icoon";
@@ -404,8 +414,10 @@
         // Is de laatste rij kort (bv. 50, of f w), dan past het icoon links
         // ernaast. Anders komt er een smalle strook onder de tegels bij.
         // Bij links of rechts uitlijnen staat het icoon aan de lege kant.
-        const vrij = Math.max(kolommen, 5) - laatsteRij;
-        if (icoonNaam !== "geen" && vrij < (uitlijning === "midden" ? 2 : 1)) {
+        const vrij = kolommen - laatsteRij;
+        // Bij spreiden en uitrekken is elke rij vol: dan altijd een strook.
+        const nodig = { midden: 2, links: 1, rechts: 1 }[uitlijning] || 99;
+        if (icoonNaam !== "geen" && vrij < nodig) {
             const ruimte = document.createElement("div");
             ruimte.className = "icoon-ruimte";
             inhoud.appendChild(ruimte);
