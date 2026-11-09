@@ -63,7 +63,7 @@
         gap: var(--gap);
         z-index: 1;
     }
-    .icoon-ruimte { height: calc(var(--t) * 0.62); }
+    .icoon-ruimte { height: var(--ir, calc(var(--t) * 0.62)); }
     [data-uitlijning="links"] .inhoud { align-items: flex-start; }
     [data-uitlijning="rechts"] .inhoud { align-items: flex-end; }
     [data-uitlijning="links"] .modus-icoon { left: auto; right: 0; }
@@ -93,10 +93,10 @@
     .scheiding {
         width: calc(var(--t) * var(--kol, 5) + var(--gap) * (var(--kol, 5) - 1));
         max-width: 100%;
-        height: 2px;
+        height: var(--lijnh, 2px);
         background: var(--lijn);
         opacity: .8;
-        margin: calc(var(--gap) * 0.4) 0;
+        margin: var(--lijnm, 3px) 0;
         position: relative;
         z-index: 1;
     }
@@ -104,7 +104,7 @@
 
     .tegel {
         width: var(--t);
-        height: calc(var(--t) * 0.82);
+        height: var(--th, calc(var(--t) * 0.82));
         border: none;
         border-radius: calc(var(--t) * 0.14);
         background: var(--tegel);
@@ -430,11 +430,21 @@
     // Meet hoe groot de tegels samen zijn en vergroot of verkleint ze zodat ze
     // het vak (tablet, gsm, Genially-insluitvak) zo goed mogelijk vullen.
     // Zo blijft er rond de tegels bijna geen lege rand over.
+    // Alle maten op hele schermpixels (ook bij schaal 1,25 of 2,625):
+    // anders valt een lijn soms tussen twee pixels en lijkt ze dikker en
+    // lichter dan de andere.
+    const DPR = window.devicePixelRatio || 1;
+    const px = v => Math.round(v * DPR) / DPR;
     function zetMaat(t, pad) {
         const st = document.documentElement.style;
+        const gap = Math.max(px(2), px(t * 0.16));
         st.setProperty("--t", t + "px");
-        st.setProperty("--gap", (t * 0.16) + "px");
-        st.setProperty("--pad", pad + "px");
+        st.setProperty("--gap", gap + "px");
+        st.setProperty("--th", px(t * 0.82) + "px");
+        st.setProperty("--lijnm", Math.max(px(1), px(gap * 0.4)) + "px");
+        st.setProperty("--lijnh", Math.max(px(2), Math.round(2 * DPR) / DPR) + "px");
+        st.setProperty("--ir", px(t * 0.62) + "px");
+        st.setProperty("--pad", px(pad) + "px");
     }
     function schaal() {
         const { kolommen } = indeling;
@@ -442,18 +452,29 @@
         const inhoud = bord.querySelector(".inhoud");
         const W = window.innerWidth, H = window.innerHeight;
         const pad = Math.max(6, Math.min(W, H) * 0.02);
-        const beschikbaarB = W - 2 * pad, beschikbaarH = H - 2 * pad;
+        const beschikbaarB = W - 2 * px(pad), beschikbaarH = H - 2 * px(pad);
+        const past = t => {
+            zetMaat(t, pad);
+            return inhoud.scrollWidth <= beschikbaarB + 0.5 && inhoud.scrollHeight <= beschikbaarH + 0.5;
+        };
+        // Eerst ruw schatten, dan per schermpixel de grootste maat die past.
         let t = 100;
         for (let poging = 0; poging < 3; poging++) {
             zetMaat(t, pad);
             const breedte = inhoud.scrollWidth, hoogte = inhoud.scrollHeight;
             if (!breedte || !hoogte) break;
-            const factor = Math.min(beschikbaarB / breedte, beschikbaarH / hoogte);
-            const nieuw = Math.max(20, Math.min(150, t * factor));
-            if (Math.abs(nieuw - t) < 0.3) break;
-            t = nieuw;
+            t = Math.max(20, Math.min(150, t * Math.min(beschikbaarB / breedte, beschikbaarH / hoogte)));
         }
-        zetMaat(Math.floor(t * 10) / 10, pad);
+        const stap = 1 / DPR;
+        t = Math.floor(t * DPR) / DPR;
+        while (t > 20 && !past(t)) t -= stap;
+        while (t + stap <= 150 && past(t + stap)) t += stap;
+        zetMaat(t, pad);
+        // Het blok staat in het midden; ligt de bovenrand tussen twee
+        // schermpixels, schuif het dan dat stukje op.
+        inhoud.style.top = "0px";
+        const boven = inhoud.getBoundingClientRect().top * DPR;
+        inhoud.style.top = (-(boven - Math.round(boven)) / DPR) + "px";
     }
     window.addEventListener("resize", () => {
         const breed = window.innerWidth / window.innerHeight > 0.95;
